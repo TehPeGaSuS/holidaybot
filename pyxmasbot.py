@@ -65,6 +65,45 @@ class TZEntry:
         return ", ".join(parts)
 
 
+def strip_json_comments(text: str) -> str:
+    """Strip // and /* */ comments from JSONC-ish text, respecting strings."""
+    out = []
+    i, n, in_string = 0, len(text), False
+    while i < n:
+        c = text[i]
+        if in_string:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            i = text.find("\n", i)
+            i = n if i == -1 else i
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def load_jsonc(path: str):
+    with open(path) as f:
+        return json.loads(strip_json_comments(f.read()))
+
+
 def load_zones() -> list[TZEntry]:
     data = json.loads((HERE / "tz.json").read_text())
     zones = [TZEntry(z["offset"], z["countries"]) for z in data]
@@ -214,6 +253,7 @@ class IRC:
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
         self._last_send = 0.0
+        self.joined = asyncio.Event()  # set once we've sent JOIN for all channels
 
     async def connect(self):
         ctx = ssl.create_default_context() if self.ssl_on else None
@@ -244,7 +284,6 @@ class IRC:
 
     async def run(self, on_message):
         await self.connect()
-        joined = False
         while True:
             line = await self.reader.readline()
             if not line:
@@ -264,15 +303,10 @@ class IRC:
             if " 903 " in msg or " 904 " in msg:  # SASL success/fail
                 self._raw("CAP END")
                 continue
-            if not joined and (" 001 " in msg or (self.sasl_pass and " CAP END" in msg)):
-                joined = True
-            if not joined and " 001 " in msg:
-                joined = True
-            if joined and self.channels and " 001 " in msg:
-                pass
-            if " 001 " in msg:
+            if " 001 " in msg:  # RPL_WELCOME: registration complete, safe to join/send
                 for ch in self.channels:
                     self._raw(f"JOIN {ch}")
+                self.joined.set()
             if "PRIVMSG" in msg:
                 m = re.match(r":(\S+)!\S+ PRIVMSG (\S+) :(.*)", msg)
                 if m:
@@ -303,6 +337,7 @@ class Bot:
         return int(z.offset * 3600)
 
     async def announce_loop(self):
+        await self.irc.joined.wait()
         while True:
             for i, z in enumerate(self.zones):
                 self.index = i
@@ -427,21 +462,59 @@ async def run(args):
             await asyncio.sleep(30)
 
 
+NETWORK_DEFAULTS = {
+    "port": 6697,
+    "email": None,
+    "nominatim": "https://nominatim.openstreetmap.org",
+    "prefix": "!",
+    "password": None,
+    "sasl_nick": None,
+    "sasl_pass": None,
+    "no_ssl": False,
+}
+NETWORK_REQUIRED = ("host", "nick", "channels", "email")
+
+
+def network_args(config: dict) -> argparse.Namespace:
+    """Build a per-network args namespace from a --config entry, applying the
+    same defaults and required fields as the single-network CLI flags."""
+    missing = [f for f in NETWORK_REQUIRED if not config.get(f)]
+    if missing:
+        raise ValueError(f"network config missing required field(s): {', '.join(missing)}")
+    merged = {**NETWORK_DEFAULTS, **config}
+    return argparse.Namespace(**merged)
+
+
 def parse_args():
     p = argparse.ArgumentParser(prog="pyxmasbot", description="Merry Christmas IRC bot")
-    p.add_argument("--host", required=True)
-    p.add_argument("--port", type=int, default=6697)
-    p.add_argument("--nick", required=True)
-    p.add_argument("--channels", required=True, nargs="+", help="e.g. --channels '#test' '#test2'")
-    p.add_argument("--email", required=True, help="contact email sent to Nominatim")
-    p.add_argument("--nominatim", default="https://nominatim.openstreetmap.org")
-    p.add_argument("--prefix", default="!")
+    p.add_argument("--config", help="JSON file with a list of network configs, to run several networks at once")
+    p.add_argument("--host")
+    p.add_argument("--port", type=int, default=NETWORK_DEFAULTS["port"])
+    p.add_argument("--nick")
+    p.add_argument("--channels", nargs="+", help="e.g. --channels '#test' '#test2'")
+    p.add_argument("--email", help="contact email sent to Nominatim")
+    p.add_argument("--nominatim", default=NETWORK_DEFAULTS["nominatim"])
+    p.add_argument("--prefix", default=NETWORK_DEFAULTS["prefix"])
     p.add_argument("--password", default=None)
     p.add_argument("--sasl-nick", default=None)
     p.add_argument("--sasl-pass", default=None)
     p.add_argument("--no-ssl", action="store_true")
-    return p.parse_args()
+    args = p.parse_args()
+    if not args.config:
+        missing = [f for f in NETWORK_REQUIRED if not getattr(args, f)]
+        if missing:
+            p.error(f"the following arguments are required: {', '.join('--' + f.replace('_', '-') for f in missing)}")
+    return args
+
+
+async def main():
+    args = parse_args()
+    if args.config:
+        networks = load_jsonc(args.config)
+        await asyncio.gather(*(run(network_args(n)) for n in networks))
+    else:
+        await run(args)
 
 
 if __name__ == "__main__":
-    asyncio.run(run(parse_args()))
+    asyncio.run(main())

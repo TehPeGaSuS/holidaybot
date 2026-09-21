@@ -64,5 +64,21 @@ python3 pyxmasbot.py --host irc.libera.chat --nick pyxmasbot \
 | `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
 | `--no-ssl` | | disable TLS |
 
-Need a second IRC network? Run a second `pyxmasbot.py` process with its own
-flags — there's no built-in multi-network config.
+### Multiple networks
+
+Pass `--config networks.jsonc` instead of the flags above to run several
+networks from one process. It's JSON with `//` and `/* */` comments allowed
+(stripped before parsing — see `networks.example.jsonc`); each entry takes
+the same fields as the CLI flags, with `host`/`nick`/`channels`/`email`
+required and everything else optional:
+
+```jsonc
+[
+  {
+    "host": "irc.libera.chat",
+    "nick": "pyxmasbot",
+    "channels": ["#test"],
+    "email": "you@example.com"
+  }
+]
+```
