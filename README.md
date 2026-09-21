@@ -37,8 +37,8 @@ coordinate → IANA timezone lookup. Get a free API key at
   (`zoneinfo.available_timezones()`) rather than a bundled data file.
 - **IRC**: a small hand-rolled `asyncio` client — connect over TLS, register,
   join channels, respond to PING, handle PRIVMSG, basic SASL PLAIN, and
-  auto-reconnect on disconnect. `--colors` turns on the same IRC bold/color
-  formatting the original bot uses.
+  auto-reconnect on disconnect. IRC bold/color formatting (`--colors`,
+  `--no-colors` to disable) is on by default.
 - **Scheduling**: an async loop walks the sorted timezone list, sleeping
   until each one's local midnight on the target date, broadcasting the
   holiday message, then rolling over to next year once all zones are done.
@@ -74,7 +74,7 @@ that's already set in the real environment.
 | `--api-key` | `$LOCATIONIQ_API_KEY` | LocationIQ API key |
 | `--prefix` | `!` | command prefix |
 | `--geocoder-url` | `https://us1.locationiq.com/v1` | LocationIQ (or Nominatim-compatible) server |
-| `--colors` | off | use IRC bold/color formatting in messages |
+| `--colors` / `--no-colors` | on | use IRC bold/color formatting in messages |
 | `--password` | | IRC server password |
 | `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
 | `--no-ssl` | | disable TLS |

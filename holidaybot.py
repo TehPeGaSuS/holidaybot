@@ -575,7 +575,7 @@ def network_defaults() -> dict:
         "sasl_nick": None,
         "sasl_pass": None,
         "no_ssl": False,
-        "colors": False,
+        "colors": True,
         "bind": None,
     }
 
@@ -632,7 +632,8 @@ def parse_args(spec: HolidaySpec):
     p.add_argument("--sasl-nick", default=None)
     p.add_argument("--sasl-pass", default=None)
     p.add_argument("--no-ssl", action="store_true")
-    p.add_argument("--colors", action="store_true", help="use IRC bold/color formatting in messages")
+    p.add_argument("--colors", action=argparse.BooleanOptionalAction, default=defaults["colors"],
+                    help="use IRC bold/color formatting in messages (default: on)")
     p.add_argument("--bind", default=None, help="local IPv4/IPv6 address to bind the outgoing connection to")
     args = p.parse_args()
     if not args.config:
