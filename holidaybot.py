@@ -288,12 +288,13 @@ class Geocoder:
 
 class IRC:
     def __init__(self, host, port, nick, channels, ssl_on=True, password=None,
-                 sasl_user=None, sasl_pass=None):
+                 sasl_user=None, sasl_pass=None, bind=None):
         self.host, self.port, self.nick = host, port, nick
         self.channels = channels
         self.ssl_on = ssl_on
         self.password = password
         self.sasl_user, self.sasl_pass = sasl_user, sasl_pass
+        self.bind = bind  # local IPv4/IPv6 address to bind the outgoing connection to
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
         self._last_send = 0.0
@@ -301,7 +302,9 @@ class IRC:
 
     async def connect(self):
         ctx = ssl.create_default_context() if self.ssl_on else None
-        self.reader, self.writer = await asyncio.open_connection(self.host, self.port, ssl=ctx)
+        local_addr = (self.bind, 0) if self.bind else None
+        self.reader, self.writer = await asyncio.open_connection(
+            self.host, self.port, ssl=ctx, local_addr=local_addr)
         if self.sasl_pass:
             self._raw("CAP REQ :sasl")
         if self.password:
@@ -522,7 +525,8 @@ async def run(args, spec: HolidaySpec):
     abbrs = build_abbr_table()
     geocoder = Geocoder(args.api_key, args.geocoder_url)
     irc = IRC(args.host, args.port, args.nick, args.channels, ssl_on=not args.no_ssl,
-              password=args.password, sasl_user=args.sasl_nick, sasl_pass=args.sasl_pass)
+              password=args.password, sasl_user=args.sasl_nick, sasl_pass=args.sasl_pass,
+              bind=args.bind)
     bot = Bot(irc=irc, prefix=args.prefix, zones=zones, abbrs=abbrs, geocoder=geocoder,
               holiday=spec.name, cmd=spec.cmd, month=spec.month, day=spec.day, colors=args.colors,
               primary_color=spec.primary_color, secondary_color=spec.secondary_color)
@@ -572,6 +576,7 @@ def network_defaults() -> dict:
         "sasl_pass": None,
         "no_ssl": False,
         "colors": False,
+        "bind": None,
     }
 
 
@@ -628,6 +633,7 @@ def parse_args(spec: HolidaySpec):
     p.add_argument("--sasl-pass", default=None)
     p.add_argument("--no-ssl", action="store_true")
     p.add_argument("--colors", action="store_true", help="use IRC bold/color formatting in messages")
+    p.add_argument("--bind", default=None, help="local IPv4/IPv6 address to bind the outgoing connection to")
     args = p.parse_args()
     if not args.config:
         missing = _check_required(vars(args))

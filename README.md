@@ -78,6 +78,7 @@ that's already set in the real environment.
 | `--password` | | IRC server password |
 | `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
 | `--no-ssl` | | disable TLS |
+| `--bind` | | local IPv4/IPv6 address to bind the outgoing connection to |
 
 ### Multiple networks
 
