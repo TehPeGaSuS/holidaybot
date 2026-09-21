@@ -636,7 +636,14 @@ def parse_args(spec: HolidaySpec):
                     help="use IRC bold/color formatting in messages (default: on)")
     p.add_argument("--bind", default=None, help="local IPv4/IPv6 address to bind the outgoing connection to")
     args = p.parse_args()
-    if not args.config:
+    if args.config:
+        network_flags = ["--host", "--port", "--nick", "--channels", "--api-key", "--geocoder-url",
+                          "--prefix", "--password", "--sasl-nick", "--sasl-pass", "--no-ssl",
+                          "--colors", "--no-colors", "--bind"]
+        used = [f for f in network_flags if f in sys.argv]
+        if used:
+            p.error(f"--config can't be combined with {', '.join(used)}; put per-network settings in the config file instead")
+    else:
         missing = _check_required(vars(args))
         if missing:
             p.error(f"the following arguments are required: {', '.join('--' + f.replace('_', '-') for f in missing)}"
