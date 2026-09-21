@@ -587,14 +587,28 @@ def _check_required(values: dict) -> list[str]:
     return missing
 
 
-def network_args(config: dict) -> argparse.Namespace:
-    """Build a per-network args namespace from a --config entry, applying the
-    same defaults and required fields as the single-network CLI flags."""
-    merged = {**network_defaults(), **config}
+def network_args(config: dict, shared: dict | None = None) -> argparse.Namespace:
+    """Build a per-network args namespace from a --config entry, applying
+    (lowest to highest priority) the same defaults as the CLI flags, then
+    the file's top-level shared settings (e.g. api_key), then the entry's
+    own fields."""
+    merged = {**network_defaults(), **(shared or {}), **config}
     missing = _check_required(merged)
     if missing:
         raise ValueError(f"network config missing required field(s): {', '.join(missing)}")
     return argparse.Namespace(**merged)
+
+
+def load_config(path: str) -> tuple[dict, list[dict]]:
+    """Load a --config file: either the plain `[{...}, {...}]` list of
+    networks, or `{"api_key": "...", ..., "networks": [...]}` where any
+    top-level field besides "networks" is shared by every entry unless that
+    entry overrides it."""
+    data = load_jsonc(path)
+    if isinstance(data, list):
+        return {}, data
+    networks = data.pop("networks", [])
+    return data, networks
 
 
 def parse_args(spec: HolidaySpec):
@@ -627,7 +641,7 @@ async def main(spec: HolidaySpec):
     load_dotenv()
     args = parse_args(spec)
     if args.config:
-        networks = load_jsonc(args.config)
-        await asyncio.gather(*(run(network_args(n), spec) for n in networks))
+        shared, networks = load_config(args.config)
+        await asyncio.gather(*(run(network_args(n, shared), spec) for n in networks))
     else:
         await run(args, spec)

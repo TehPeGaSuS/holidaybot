@@ -83,18 +83,24 @@ that's already set in the real environment.
 
 Pass `--config networks.jsonc` instead of the flags above to run several
 networks from one process. It's JSON with `//` and `/* */` comments allowed
-(stripped before parsing — see `networks.example.jsonc`); each entry takes
-the same fields as the CLI flags, with `host`/`nick`/`channels` required and
-everything else (including `api_key`) optional — `api_key` falls back to
-`$LOCATIONIQ_API_KEY` per entry too, so it's one line for any number of
-networks:
+(stripped before parsing — see `networks.example.jsonc`). Each network takes
+the same fields as the CLI flags, with only `host`/`nick`/`channels`
+required. Put settings shared across every network — typically `api_key` —
+at the top level alongside `networks`; a network can still override a shared
+field for itself:
 
 ```jsonc
-[
-  {
-    "host": "irc.libera.chat",
-    "nick": "pyxmasbot",
-    "channels": ["#test"]
-  }
-]
+{
+  "api_key": "your-locationiq-api-key",
+  "networks": [
+    {
+      "host": "irc.libera.chat",
+      "nick": "pyxmasbot",
+      "channels": ["#test"]
+    }
+  ]
+}
 ```
+
+A plain `[{...}, {...}]` list (no shared settings, `api_key` per entry or via
+`$LOCATIONIQ_API_KEY`/`.env`) still works too.
