@@ -22,9 +22,11 @@ also answer commands in-channel:
 - `!help` — list commands
 - `!source` — link to this repo
 
-Free-text locations are resolved with the [Nominatim](https://nominatim.org/)
-geocoding API plus [`timezonefinder`](https://github.com/jannikmi/timezonefinder)
-for coordinate → IANA timezone lookup.
+Free-text locations are resolved with the [LocationIQ](https://locationiq.com/)
+geocoding API (Nominatim-compatible, but with a usable free-tier rate limit)
+plus [`timezonefinder`](https://github.com/jannikmi/timezonefinder) for
+coordinate → IANA timezone lookup. Get a free API key at
+[locationiq.com](https://locationiq.com/).
 
 ## How it works
 
@@ -51,10 +53,10 @@ pip install -r requirements.txt
 
 ```
 python3 pyxmasbot.py --host irc.libera.chat --nick pyxmasbot \
-    --channels '#test' --email you@example.com
+    --channels '#test' --api-key your-locationiq-api-key
 
 python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
-    --channels '#test' --email you@example.com
+    --channels '#test' --api-key your-locationiq-api-key
 ```
 
 | Flag | Default | Description |
@@ -63,9 +65,9 @@ python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
 | `--port` | `6697` | IRC server port |
 | `--nick` | *(required)* | bot nickname |
 | `--channels` | *(required)* | one or more channels, e.g. `--channels '#test' '#test2'` |
-| `--email` | *(required)* | contact email sent to Nominatim |
+| `--api-key` | *(required)* | LocationIQ API key |
 | `--prefix` | `!` | command prefix |
-| `--nominatim` | `https://nominatim.openstreetmap.org` | Nominatim server |
+| `--geocoder-url` | `https://us1.locationiq.com/v1` | LocationIQ (or Nominatim-compatible) server |
 | `--colors` | off | use IRC bold/color formatting in messages |
 | `--password` | | IRC server password |
 | `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
@@ -76,7 +78,7 @@ python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
 Pass `--config networks.jsonc` instead of the flags above to run several
 networks from one process. It's JSON with `//` and `/* */` comments allowed
 (stripped before parsing — see `networks.example.jsonc`); each entry takes
-the same fields as the CLI flags, with `host`/`nick`/`channels`/`email`
+the same fields as the CLI flags, with `host`/`nick`/`channels`/`api_key`
 required and everything else optional:
 
 ```jsonc
@@ -85,17 +87,7 @@ required and everything else optional:
     "host": "irc.libera.chat",
     "nick": "pyxmasbot",
     "channels": ["#test"],
-    "email": "you@example.com"
+    "api_key": "your-locationiq-api-key"
   }
 ]
 ```
-
-### A note on Nominatim
-
-The public `nominatim.openstreetmap.org` instance enforces a 1 req/sec limit
-per its usage policy, and in practice throttles harder than that (heavy
-scraping traffic industry-wide has made public instances more aggressive
-about `429 Too Many Requests`). `!xmas <place>` and `!time <place>` requests
-are rate-limited client-side and results are cached, but you may still hit
-429s under the public instance. Point `--nominatim` at your own instance for
-reliable service.

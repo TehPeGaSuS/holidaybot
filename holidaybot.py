@@ -185,7 +185,7 @@ def human_duration(delta: timedelta) -> str:
 
 
 def short_address(display_name: str) -> str:
-    """Nominatim's display_name is a full admin hierarchy (city, county,
+    """LocationIQ's display_name (Nominatim-compatible) is a full admin hierarchy (city, county,
     region, historical region, postal code, country, ...). Keep city +
     state/region + country: enough to tell apart e.g. Paris, France vs.
     Paris, Texas, United States, without the verbose county/historical-region
@@ -215,19 +215,18 @@ def next_target(now: datetime, month: int, day: int) -> datetime:
 
 
 # ---------------------------------------------------------------------------
-# Nominatim geocoding (same free service as the original bot), with a tiny
-# in-memory cache and offline coordinate -> IANA tz lookup via timezonefinder.
+# LocationIQ geocoding (Nominatim-compatible API, but with a usable free-tier
+# rate limit instead of the public Nominatim instance's aggressive
+# throttling), with a tiny in-memory cache and offline coordinate -> IANA tz
+# lookup via timezonefinder.
 # ---------------------------------------------------------------------------
 
 class Geocoder:
-    # Nominatim's usage policy caps public-instance clients at 1 req/sec;
-    # the public instance also throttles more aggressively than that in
-    # practice (heavy scraping traffic), so requests can still 429 despite
-    # this. Point --nominatim at your own instance for reliable service.
-    MIN_INTERVAL = 1.0
+    # LocationIQ's free tier allows 2 req/sec; stay comfortably under that.
+    MIN_INTERVAL = 0.6
 
-    def __init__(self, email: str, server: str):
-        self.email = email
+    def __init__(self, api_key: str, server: str):
+        self.api_key = api_key
         self.server = server.rstrip("/")
         self.cache: dict[str, dict | None] = {}
         self.finder = TimezoneFinder() if TimezoneFinder else None
@@ -243,15 +242,18 @@ class Geocoder:
             time.sleep(wait)
         try:
             resp = requests.get(
-                f"{self.server}/search",
-                params={"q": place, "format": "json", "accept-language": "en", "limit": 1, "email": self.email},
+                f"{self.server}/search.php",
+                params={"key": self.api_key, "q": place, "format": "json", "accept-language": "en", "limit": 1},
                 headers={"User-Agent": f"holidaybot: {SOURCE_URL}"},
                 timeout=10,
             )
         finally:
             self._last_request = time.monotonic()
         if resp.status_code == 429:
-            raise RuntimeError("Nominatim is rate-limiting us right now, try again in a bit")
+            raise RuntimeError("LocationIQ is rate-limiting us right now, try again in a bit")
+        if resp.status_code == 404:  # LocationIQ's "no match" response: {"error": "..."}
+            self.cache[place] = None
+            return None
         resp.raise_for_status()
         results = resp.json()
         result = results[0] if results else None
@@ -509,7 +511,7 @@ class HolidaySpec:
 async def run(args, spec: HolidaySpec):
     zones = load_zones()
     abbrs = build_abbr_table()
-    geocoder = Geocoder(args.email, args.nominatim)
+    geocoder = Geocoder(args.api_key, args.geocoder_url)
     irc = IRC(args.host, args.port, args.nick, args.channels, ssl_on=not args.no_ssl,
               password=args.password, sasl_user=args.sasl_nick, sasl_pass=args.sasl_pass)
     bot = Bot(irc=irc, prefix=args.prefix, zones=zones, abbrs=abbrs, geocoder=geocoder,
@@ -532,8 +534,8 @@ async def run(args, spec: HolidaySpec):
 
 NETWORK_DEFAULTS = {
     "port": 6697,
-    "email": None,
-    "nominatim": "https://nominatim.openstreetmap.org",
+    "api_key": None,
+    "geocoder_url": "https://us1.locationiq.com/v1",
     "prefix": "!",
     "password": None,
     "sasl_nick": None,
@@ -541,7 +543,7 @@ NETWORK_DEFAULTS = {
     "no_ssl": False,
     "colors": False,
 }
-NETWORK_REQUIRED = ("host", "nick", "channels", "email")
+NETWORK_REQUIRED = ("host", "nick", "channels", "api_key")
 
 
 def network_args(config: dict) -> argparse.Namespace:
@@ -561,8 +563,8 @@ def parse_args(spec: HolidaySpec):
     p.add_argument("--port", type=int, default=NETWORK_DEFAULTS["port"])
     p.add_argument("--nick")
     p.add_argument("--channels", nargs="+", help="e.g. --channels '#test' '#test2'")
-    p.add_argument("--email", help="contact email sent to Nominatim")
-    p.add_argument("--nominatim", default=NETWORK_DEFAULTS["nominatim"])
+    p.add_argument("--api-key", help="LocationIQ API key")
+    p.add_argument("--geocoder-url", default=NETWORK_DEFAULTS["geocoder_url"])
     p.add_argument("--prefix", default=NETWORK_DEFAULTS["prefix"])
     p.add_argument("--password", default=None)
     p.add_argument("--sasl-nick", default=None)
