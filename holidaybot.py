@@ -39,11 +39,6 @@ try:
 except ImportError:
     requests = None
 
-try:
-    from timezonefinder import TimezoneFinder
-except ImportError:
-    TimezoneFinder = None
-
 HERE = Path(__file__).resolve().parent
 SOURCE_URL = "https://github.com/TehPeGaSuS/pyxmasbot"  # repo for both bots
 ORIGINAL_URL = "https://github.com/TehPeGaSuS/xmasbot"  # the Go bot this ports
@@ -229,12 +224,13 @@ class Geocoder:
         self.api_key = api_key
         self.server = server.rstrip("/")
         self.cache: dict[str, dict | None] = {}
-        self.finder = TimezoneFinder() if TimezoneFinder else None
+        self.tz_cache: dict[tuple[str, str], str | None] = {}
         self._last_request = 0.0
 
-    def lookup(self, place: str) -> dict | None:
-        if place in self.cache:
-            return self.cache[place]
+    def _get(self, path: str, params: dict) -> dict | None:
+        """GET a LocationIQ endpoint, rate-limited to MIN_INTERVAL between
+        calls. Returns None on LocationIQ's "no match" 404, raises on other
+        errors (429 gets a clear message instead of a raw HTTPError)."""
         if requests is None:
             raise RuntimeError("the 'requests' package is required for location lookups")
         wait = self.MIN_INTERVAL - (time.monotonic() - self._last_request)
@@ -242,8 +238,8 @@ class Geocoder:
             time.sleep(wait)
         try:
             resp = requests.get(
-                f"{self.server}/search.php",
-                params={"key": self.api_key, "q": place, "format": "json", "accept-language": "en", "limit": 1},
+                f"{self.server}{path}",
+                params={"key": self.api_key, **params},
                 headers={"User-Agent": f"holidaybot: {SOURCE_URL}"},
                 timeout=10,
             )
@@ -252,21 +248,33 @@ class Geocoder:
         if resp.status_code == 429:
             raise RuntimeError("LocationIQ is rate-limiting us right now, try again in a bit")
         if resp.status_code == 404:  # LocationIQ's "no match" response: {"error": "..."}
-            self.cache[place] = None
             return None
         resp.raise_for_status()
-        results = resp.json()
-        result = results[0] if results else None
+        return resp.json()
+
+    def lookup(self, place: str) -> dict | None:
+        if place in self.cache:
+            return self.cache[place]
+        data = self._get("/search.php", {"q": place, "format": "json", "accept-language": "en", "limit": 1})
+        result = data[0] if data else None
         self.cache[place] = result
         return result
+
+    def timezone_for(self, lat: str, lon: str) -> str | None:
+        """IANA tz id for a coordinate, via LocationIQ's /timezone endpoint."""
+        key = (lat, lon)
+        if key in self.tz_cache:
+            return self.tz_cache[key]
+        data = self._get("/timezone", {"lat": lat, "lon": lon})
+        tzid = data["timezone"]["name"] if data else None
+        self.tz_cache[key] = tzid
+        return tzid
 
     def tz_for(self, place: str) -> tuple[ZoneInfo, str] | None:
         result = self.lookup(place)
         if not result:
             return None
-        if self.finder is None:
-            raise RuntimeError("the 'timezonefinder' package is required for location lookups")
-        tzid = self.finder.timezone_at(lat=float(result["lat"]), lng=float(result["lon"]))
+        tzid = self.timezone_for(result["lat"], result["lon"])
         if not tzid:
             return None
         return ZoneInfo(tzid), short_address(result["display_name"])

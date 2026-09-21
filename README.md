@@ -23,10 +23,10 @@ also answer commands in-channel:
 - `!source` — link to this repo
 
 Free-text locations are resolved with the [LocationIQ](https://locationiq.com/)
-geocoding API (Nominatim-compatible, but with a usable free-tier rate limit)
-plus [`timezonefinder`](https://github.com/jannikmi/timezonefinder) for
+geocoding API (Nominatim-compatible, but with a usable free-tier rate limit),
+using its `/search` endpoint for geocoding and its `/timezone` endpoint for
 coordinate → IANA timezone lookup. Get a free API key at
-[locationiq.com](https://locationiq.com/).
+[locationiq.com](https://locationiq.com/) (free tier: 5,000 req/day, 2 req/sec).
 
 ## How it works
 
