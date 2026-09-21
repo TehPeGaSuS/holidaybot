@@ -1,18 +1,17 @@
 // pyxmasbot --config networks.example.jsonc
-// One entry per IRC network. Only host/nick/channels/api_key are required;
-// everything else falls back to the same defaults as the CLI flags.
+// One entry per IRC network. Only host/nick/channels are required;
+// api_key falls back to $LOCATIONIQ_API_KEY, everything else falls back
+// to the same defaults as the CLI flags.
 [
   {
     "host": "irc.ptirc.org",
     "nick": "pyxmasbot",
-    "channels": ["##testchan"],
-    "api_key": "your-locationiq-api-key"
+    "channels": ["##testchan"]
   }
   /* ,{
     "host": "irc.libera.chat",
     "nick": "pyxmasbot2",
     "channels": ["#test", "#test2"],
-    "api_key": "your-locationiq-api-key",
     "sasl_nick": "pyxmasbot2",
     "sasl_pass": "hunter2"
   } */

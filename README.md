@@ -52,12 +52,18 @@ pip install -r requirements.txt
 ## Usage
 
 ```
-python3 pyxmasbot.py --host irc.libera.chat --nick pyxmasbot \
-    --channels '#test' --api-key your-locationiq-api-key
+export LOCATIONIQ_API_KEY=your-locationiq-api-key
 
-python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
-    --channels '#test' --api-key your-locationiq-api-key
+python3 pyxmasbot.py --host irc.libera.chat --nick pyxmasbot --channels '#test'
+
+python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot --channels '#test'
 ```
+
+`$LOCATIONIQ_API_KEY` is picked up automatically (`--api-key` overrides it if
+both are set), so one API key covers every network without repeating it. A
+`.env` file (`LOCATIONIQ_API_KEY=...`, one `KEY=VALUE` per line) in the
+working directory is loaded automatically too, without overriding a variable
+that's already set in the real environment.
 
 | Flag | Default | Description |
 |---|---|---|
@@ -65,7 +71,7 @@ python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
 | `--port` | `6697` | IRC server port |
 | `--nick` | *(required)* | bot nickname |
 | `--channels` | *(required)* | one or more channels, e.g. `--channels '#test' '#test2'` |
-| `--api-key` | *(required)* | LocationIQ API key |
+| `--api-key` | `$LOCATIONIQ_API_KEY` | LocationIQ API key |
 | `--prefix` | `!` | command prefix |
 | `--geocoder-url` | `https://us1.locationiq.com/v1` | LocationIQ (or Nominatim-compatible) server |
 | `--colors` | off | use IRC bold/color formatting in messages |
@@ -78,16 +84,17 @@ python3 pynewyearbot.py --host irc.libera.chat --nick pynewyearbot \
 Pass `--config networks.jsonc` instead of the flags above to run several
 networks from one process. It's JSON with `//` and `/* */` comments allowed
 (stripped before parsing — see `networks.example.jsonc`); each entry takes
-the same fields as the CLI flags, with `host`/`nick`/`channels`/`api_key`
-required and everything else optional:
+the same fields as the CLI flags, with `host`/`nick`/`channels` required and
+everything else (including `api_key`) optional — `api_key` falls back to
+`$LOCATIONIQ_API_KEY` per entry too, so it's one line for any number of
+networks:
 
 ```jsonc
 [
   {
     "host": "irc.libera.chat",
     "nick": "pyxmasbot",
-    "channels": ["#test"],
-    "api_key": "your-locationiq-api-key"
+    "channels": ["#test"]
   }
 ]
 ```

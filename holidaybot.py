@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import ssl
 import sys
@@ -540,40 +541,74 @@ async def run(args, spec: HolidaySpec):
             await asyncio.sleep(30)
 
 
-NETWORK_DEFAULTS = {
-    "port": 6697,
-    "api_key": None,
-    "geocoder_url": "https://us1.locationiq.com/v1",
-    "prefix": "!",
-    "password": None,
-    "sasl_nick": None,
-    "sasl_pass": None,
-    "no_ssl": False,
-    "colors": False,
-}
-NETWORK_REQUIRED = ("host", "nick", "channels", "api_key")
+API_KEY_ENV_VAR = "LOCATIONIQ_API_KEY"
+
+
+def load_dotenv(path: str = ".env") -> None:
+    """Load KEY=VALUE lines from a .env file into os.environ (without
+    overriding variables already set in the real environment). No new
+    dependency for this -- same spirit as strip_json_comments()."""
+    p = Path(path)
+    if not p.is_file():
+        return
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def network_defaults() -> dict:
+    """Re-read $LOCATIONIQ_API_KEY each call, so a .env file loaded after
+    import (see load_dotenv) is picked up."""
+    return {
+        "port": 6697,
+        "api_key": os.environ.get(API_KEY_ENV_VAR),
+        "geocoder_url": "https://us1.locationiq.com/v1",
+        "prefix": "!",
+        "password": None,
+        "sasl_nick": None,
+        "sasl_pass": None,
+        "no_ssl": False,
+        "colors": False,
+    }
+
+
+# Always required per network/CLI invocation. api_key is checked separately
+# since it can also come from $LOCATIONIQ_API_KEY (see network_defaults()).
+NETWORK_REQUIRED = ("host", "nick", "channels")
+
+
+def _check_required(values: dict) -> list[str]:
+    missing = [f for f in NETWORK_REQUIRED if not values.get(f)]
+    if not values.get("api_key"):
+        missing.append("api_key")
+    return missing
 
 
 def network_args(config: dict) -> argparse.Namespace:
     """Build a per-network args namespace from a --config entry, applying the
     same defaults and required fields as the single-network CLI flags."""
-    missing = [f for f in NETWORK_REQUIRED if not config.get(f)]
+    merged = {**network_defaults(), **config}
+    missing = _check_required(merged)
     if missing:
         raise ValueError(f"network config missing required field(s): {', '.join(missing)}")
-    merged = {**NETWORK_DEFAULTS, **config}
     return argparse.Namespace(**merged)
 
 
 def parse_args(spec: HolidaySpec):
+    defaults = network_defaults()
     p = argparse.ArgumentParser(prog=spec.prog, description=f"{spec.name} IRC bot")
     p.add_argument("--config", help="JSON file with a list of network configs, to run several networks at once")
     p.add_argument("--host")
-    p.add_argument("--port", type=int, default=NETWORK_DEFAULTS["port"])
+    p.add_argument("--port", type=int, default=defaults["port"])
     p.add_argument("--nick")
     p.add_argument("--channels", nargs="+", help="e.g. --channels '#test' '#test2'")
-    p.add_argument("--api-key", help="LocationIQ API key")
-    p.add_argument("--geocoder-url", default=NETWORK_DEFAULTS["geocoder_url"])
-    p.add_argument("--prefix", default=NETWORK_DEFAULTS["prefix"])
+    p.add_argument("--api-key", default=defaults["api_key"],
+                    help=f"LocationIQ API key (default: ${API_KEY_ENV_VAR})")
+    p.add_argument("--geocoder-url", default=defaults["geocoder_url"])
+    p.add_argument("--prefix", default=defaults["prefix"])
     p.add_argument("--password", default=None)
     p.add_argument("--sasl-nick", default=None)
     p.add_argument("--sasl-pass", default=None)
@@ -581,13 +616,15 @@ def parse_args(spec: HolidaySpec):
     p.add_argument("--colors", action="store_true", help="use IRC bold/color formatting in messages")
     args = p.parse_args()
     if not args.config:
-        missing = [f for f in NETWORK_REQUIRED if not getattr(args, f)]
+        missing = _check_required(vars(args))
         if missing:
-            p.error(f"the following arguments are required: {', '.join('--' + f.replace('_', '-') for f in missing)}")
+            p.error(f"the following arguments are required: {', '.join('--' + f.replace('_', '-') for f in missing)}"
+                     f" (or set ${API_KEY_ENV_VAR} for api-key)")
     return args
 
 
 async def main(spec: HolidaySpec):
+    load_dotenv()
     args = parse_args(spec)
     if args.config:
         networks = load_jsonc(args.config)
