@@ -41,7 +41,7 @@ except ImportError:
     requests = None
 
 HERE = Path(__file__).resolve().parent
-SOURCE_URL = "https://github.com/TehPeGaSuS/pyxmasbot"  # repo for both bots
+SOURCE_URL = "https://github.com/TehPeGaSuS/holidaybot"  # repo for both bots
 ORIGINAL_URL = "https://github.com/TehPeGaSuS/xmasbot"  # the Go bot this ports
 
 # mIRC color codes (https://modern.ircdocs.horse/formatting.html), matching
