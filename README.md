@@ -79,6 +79,7 @@ that's already set in the real environment.
 | `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
 | `--no-ssl` | | disable TLS |
 | `--bind` | | local IPv4/IPv6 address to bind the outgoing connection to |
+| `--alt-nick` | | nick to try if `--nick` is taken, before `nick_`/`nick__`/`nick___` |
 
 ### Multiple networks
 

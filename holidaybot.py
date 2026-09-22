@@ -288,8 +288,9 @@ class Geocoder:
 
 class IRC:
     def __init__(self, host, port, nick, channels, ssl_on=True, password=None,
-                 sasl_user=None, sasl_pass=None, bind=None):
+                 sasl_user=None, sasl_pass=None, bind=None, alt_nick=None):
         self.host, self.port, self.nick = host, port, nick
+        self.alt_nick = alt_nick  # tried once if `nick` is taken, before nick_, nick__, nick___
         self.channels = channels
         self.ssl_on = ssl_on
         self.password = password
@@ -298,6 +299,8 @@ class IRC:
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
         self._last_send = 0.0
+        self._nick_choices: list[str] = []
+        self._nick_index = 0
         self.joined = asyncio.Event()  # set once we've sent JOIN for all channels
 
     async def connect(self):
@@ -309,8 +312,11 @@ class IRC:
             self._raw("CAP REQ :sasl")
         if self.password:
             self._raw(f"PASS {self.password}")
-        self._raw(f"NICK {self.nick}")
-        self._raw(f"USER {self.nick} 0 * :{self.nick}")
+        self._nick_choices = [self.nick] + ([self.alt_nick] if self.alt_nick else []) + \
+            [self.nick + "_" * n for n in (1, 2, 3)]
+        self._nick_index = 0
+        self._raw(f"NICK {self._nick_choices[0]}")
+        self._raw(f"USER {self._nick_choices[0]} 0 * :{self._nick_choices[0]}")
 
     def _raw(self, line: str):
         self.writer.write((line + "\r\n").encode("utf-8", "replace"))
@@ -349,6 +355,13 @@ class IRC:
                 continue
             if " 903 " in msg or " 904 " in msg:  # SASL success/fail
                 self._raw("CAP END")
+                continue
+            if " 433 " in msg:  # ERR_NICKNAMEINUSE: try alt_nick, then nick_, nick__, nick___
+                self._nick_index += 1
+                if self._nick_index < len(self._nick_choices):
+                    self._raw(f"NICK {self._nick_choices[self._nick_index]}")
+                else:
+                    print(f"all nicks taken on {self.host}, giving up on registering", file=sys.stderr)
                 continue
             if " 001 " in msg:  # RPL_WELCOME: registration complete, safe to join/send
                 for ch in self.channels:
@@ -526,7 +539,7 @@ async def run(args, spec: HolidaySpec):
     geocoder = Geocoder(args.api_key, args.geocoder_url)
     irc = IRC(args.host, args.port, args.nick, args.channels, ssl_on=not args.no_ssl,
               password=args.password, sasl_user=args.sasl_nick, sasl_pass=args.sasl_pass,
-              bind=args.bind)
+              bind=args.bind, alt_nick=args.alt_nick)
     bot = Bot(irc=irc, prefix=args.prefix, zones=zones, abbrs=abbrs, geocoder=geocoder,
               holiday=spec.name, cmd=spec.cmd, month=spec.month, day=spec.day, colors=args.colors,
               primary_color=spec.primary_color, secondary_color=spec.secondary_color)
@@ -577,6 +590,7 @@ def network_defaults() -> dict:
         "no_ssl": False,
         "colors": True,
         "bind": None,
+        "alt_nick": None,
     }
 
 
@@ -635,11 +649,12 @@ def parse_args(spec: HolidaySpec):
     p.add_argument("--colors", action=argparse.BooleanOptionalAction, default=defaults["colors"],
                     help="use IRC bold/color formatting in messages (default: on)")
     p.add_argument("--bind", default=None, help="local IPv4/IPv6 address to bind the outgoing connection to")
+    p.add_argument("--alt-nick", default=None, help="nick to try if --nick is taken, before nick_/nick__/nick___")
     args = p.parse_args()
     if args.config:
         network_flags = ["--host", "--port", "--nick", "--channels", "--api-key", "--geocoder-url",
                           "--prefix", "--password", "--sasl-nick", "--sasl-pass", "--no-ssl",
-                          "--colors", "--no-colors", "--bind"]
+                          "--colors", "--no-colors", "--bind", "--alt-nick"]
         used = [f for f in network_flags if f in sys.argv]
         if used:
             p.error(f"--config can't be combined with {', '.join(used)}; put per-network settings in the config file instead")
