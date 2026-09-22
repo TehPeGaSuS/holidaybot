@@ -65,21 +65,21 @@ both are set), so one API key covers every network without repeating it. A
 working directory is loaded automatically too, without overriding a variable
 that's already set in the real environment.
 
-| Flag | Default | Description |
-|---|---|---|
-| `--host` | *(required)* | IRC server hostname |
-| `--port` | `6697` | IRC server port |
-| `--nick` | *(required)* | bot nickname |
-| `--channels` | *(required)* | one or more channels, e.g. `--channels '#test' '#test2'` |
-| `--api-key` | `$LOCATIONIQ_API_KEY` | LocationIQ API key |
-| `--prefix` | `!` | command prefix |
-| `--geocoder-url` | `https://us1.locationiq.com/v1` | LocationIQ (or Nominatim-compatible) server |
-| `--colors` / `--no-colors` | on | use IRC bold/color formatting in messages |
-| `--password` | | IRC server password |
-| `--sasl-nick` / `--sasl-pass` | | SASL PLAIN credentials |
-| `--no-ssl` | | disable TLS |
-| `--bind` | | local IPv4/IPv6 address to bind the outgoing connection to |
-| `--alt-nick` | | nick to try if `--nick` is taken, before `nick_`/`nick__`/`nick___` |
+| Flag | Config field | Default | Description |
+|---|---|---|---|
+| `--host` | `host` | *(required)* | IRC server hostname |
+| `--port` | `port` | `6697` | IRC server port |
+| `--nick` | `nick` | *(required)* | bot nickname |
+| `--channels` | `channels` | *(required)* | one or more channels, e.g. `--channels '#test' '#test2'` |
+| `--api-key` | `api_key` | `$LOCATIONIQ_API_KEY` | LocationIQ API key |
+| `--prefix` | `prefix` | `!` | command prefix |
+| `--geocoder-url` | `geocoder_url` | `https://us1.locationiq.com/v1` | LocationIQ (or Nominatim-compatible) server |
+| `--colors` / `--no-colors` | `colors` (bool) | on | use IRC bold/color formatting in messages |
+| `--password` | `password` | | IRC server password |
+| `--sasl-nick` / `--sasl-pass` | `sasl_nick` / `sasl_pass` | | SASL PLAIN credentials |
+| `--no-ssl` | `no_ssl` (bool) | | disable TLS |
+| `--bind` | `bind` | | local IPv4/IPv6 address to bind the outgoing connection to |
+| `--alt-nick` | `alt_nick` | | nick to try if `--nick` is taken, before `nick_`/`nick__`/`nick___` |
 
 ### Multiple networks
 
