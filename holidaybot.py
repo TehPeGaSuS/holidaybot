@@ -576,11 +576,16 @@ def load_dotenv(path: str = ".env") -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def default_port(no_ssl: bool) -> int:
+    return 6667 if no_ssl else 6697
+
+
 def network_defaults() -> dict:
     """Re-read $LOCATIONIQ_API_KEY each call, so a .env file loaded after
-    import (see load_dotenv) is picked up."""
+    import (see load_dotenv) is picked up. "port" is deliberately absent:
+    its default depends on no_ssl, resolved after merging (see
+    network_args() and parse_args())."""
     return {
-        "port": 6697,
         "api_key": os.environ.get(API_KEY_ENV_VAR),
         "geocoder_url": "https://us1.locationiq.com/v1",
         "prefix": "!",
@@ -612,6 +617,7 @@ def network_args(config: dict, shared: dict | None = None) -> argparse.Namespace
     the file's top-level shared settings (e.g. api_key), then the entry's
     own fields."""
     merged = {**network_defaults(), **(shared or {}), **config}
+    merged.setdefault("port", default_port(merged.get("no_ssl", False)))
     missing = _check_required(merged)
     if missing:
         raise ValueError(f"network config missing required field(s): {', '.join(missing)}")
@@ -635,7 +641,8 @@ def parse_args(spec: HolidaySpec):
     p = argparse.ArgumentParser(prog=spec.prog, description=f"{spec.name} IRC bot")
     p.add_argument("--config", help="JSON file with a list of network configs, to run several networks at once")
     p.add_argument("--host")
-    p.add_argument("--port", type=int, default=defaults["port"])
+    p.add_argument("--port", type=int, default=None,
+                    help="default: 6697, or 6667 if --no-ssl")
     p.add_argument("--nick")
     p.add_argument("--channels", nargs="+", help="e.g. --channels '#test' '#test2'")
     p.add_argument("--api-key", default=defaults["api_key"],
@@ -659,6 +666,8 @@ def parse_args(spec: HolidaySpec):
         if used:
             p.error(f"--config can't be combined with {', '.join(used)}; put per-network settings in the config file instead")
     else:
+        if args.port is None:
+            args.port = default_port(args.no_ssl)
         missing = _check_required(vars(args))
         if missing:
             p.error(f"the following arguments are required: {', '.join('--' + f.replace('_', '-') for f in missing)}"

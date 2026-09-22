@@ -68,7 +68,7 @@ that's already set in the real environment.
 | Flag | Config field | Default | Description |
 |---|---|---|---|
 | `--host` | `host` | *(required)* | IRC server hostname |
-| `--port` | `port` | `6697` | IRC server port |
+| `--port` | `port` | `6697`, or `6667` if `no_ssl` | IRC server port |
 | `--nick` | `nick` | *(required)* | bot nickname |
 | `--channels` | `channels` | *(required)* | one or more channels, e.g. `--channels '#test' '#test2'` |
 | `--api-key` | `api_key` | `$LOCATIONIQ_API_KEY` | LocationIQ API key |
